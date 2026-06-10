@@ -72,11 +72,41 @@ does_. Consult `references/element-guide.md` for the exact mapping from each
 binding/element type to where its implementation lives and what to extract. In
 short:
 
+**CRITICAL: deep call-chain tracing.** Delegates, workers and expression beans
+are almost never the real logic — they are thin wrappers that call injected
+services, which in turn call other services, repositories, REST/SOAP clients,
+message producers, etc. You **must** follow the entire call chain until you
+reach the actual business logic, data access, or external system interaction.
+Do not stop at the delegate. Concretely:
+
+1. Read the delegate / worker / bean.
+2. Identify every injected dependency (constructor args, `@Autowired` fields).
+3. For each service method called, open that service class and read the method.
+4. If that method calls further services, repositories, API clients, or utility
+   classes — follow those too. Keep going until you reach:
+   - **Database access** (JPA repositories, JDBC templates, native queries) →
+     document which entities/tables are read or written, what criteria/filters
+     are used, and the effect (create/update/delete).
+   - **External HTTP / REST / SOAP calls** → document the target system, the
+     endpoint/operation, request payload, expected response, and error handling.
+   - **Message / event production** (Kafka, RabbitMQ, JMS, Camunda messages) →
+     document the topic/queue, the payload structure, and the consumer if known.
+   - **Calculations / transformations / business rules** implemented in code →
+     describe the logic in business terms (what is computed, which rules or
+     formulas apply, edge cases).
+   - **Variable reads/writes** (`execution.getVariable` / `setVariable`,
+     `runtimeService`, `taskService`) → track every process variable consumed
+     and produced.
+5. Document the complete picture: not "calls FooService" but what FooService
+   actually *does* — the data it reads, the decisions it makes, the systems it
+   talks to, the data it writes back, and the errors it can throw.
+
+Apply this deep tracing to every activity type:
+
 - **External task** (`type: external`, `topic: X`) → find the worker subscribing
-  to topic `X` and summarise what it does.
+  to topic `X`. Then trace its full call chain as described above.
 - **`class` / `delegateExpression` / `expression`** → find the JavaDelegate /
-  Spring bean / method and summarise its behaviour, variables, external calls,
-  and the errors it can throw.
+  Spring bean / method. Then trace its full call chain as described above.
 - **Business rule task** (`decisionRef`) → find the `.dmn`, summarise inputs,
   outputs, hit policy, and the key rules in business language.
 - **Call activity** (`calledElement`) → find the called `.bpmn`; link to its doc
@@ -92,8 +122,10 @@ short:
   and how fields bind to process variables in and out. If the UI cannot be
   found, say so explicitly under gaps rather than guessing.
 - **Script task** → include the script and explain what it computes.
-- **Listeners / field injections** → find their classes; they often hold side
-  effects (audit, notifications, variable prep) worth documenting.
+- **Listeners / field injections** → find their classes and trace their full
+  call chain — listeners often hold critical side effects (audit logging,
+  notifications, variable preparation, external calls) that are invisible from
+  the process model alone.
 
 Search the repo by the **exact binding value** (topic / FQN / bean name /
 decision key / called process key). If an implementation genuinely can't be
@@ -124,8 +156,9 @@ one-line summary of what you documented (and list any gaps).
 - The Summary is extensive and lets someone who has never seen the code
   understand the whole process on its own.
 - Every activity has a full "Purpose" and "Detailed description", plus an
-  "Implementation analysis" grounded in code that actually exists in the repo —
-  or an explicit gap note.
+  "Implementation analysis" that traces the **complete call chain** — not just
+  the delegate but every service, repository, API client, and utility it calls —
+  grounded in code that actually exists in the repo, or an explicit gap note.
 - Every user task documents its actual UI: where it lives, its fields, actions
   and data bindings — or an explicit gap note if the UI could not be found.
 - Every gateway path's condition is explained in plain language.

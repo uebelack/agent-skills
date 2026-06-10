@@ -12,11 +12,39 @@ The parser puts these under each node's `implementation` object.
 
 | Binding (`implementation.*`) | Meaning | Where to find the code |
 |---|---|---|
-| `type: external` + `topic: X` | External task — handled by an out-of-process worker subscribing to topic `X` | Search the codebase for the topic string `"X"`: Spring `@ExternalTaskSubscription("X")` on a `@Component` implementing `ExternalTaskHandler`; or `externalTaskClient.subscribe("X")` |
-| `class: com.foo.Bar` | JavaDelegate implementation | Open `com/foo/Bar.java`; read `execute(DelegateExecution)` — what it reads/writes via `execution.getVariable/setVariable`, external calls, exceptions thrown |
-| `delegateExpression: ${beanName}` | Spring bean implementing `JavaDelegate` | Find the bean: `@Component("beanName")` or `@Named` / a `@Bean` method named `beanName`; read its `execute(...)` |
-| `expression: ${bean.method(...)}` | Method expression | Find `bean` and the method; document its effect and return (often stored via `resultVariable`) |
+| `type: external` + `topic: X` | External task — handled by an out-of-process worker subscribing to topic `X` | Search the codebase for the topic string `"X"`: Spring `@ExternalTaskSubscription("X")` on a `@Component` implementing `ExternalTaskHandler`; or `externalTaskClient.subscribe("X")`. **Then trace the full call chain** (see below). |
+| `class: com.foo.Bar` | JavaDelegate implementation | Open `com/foo/Bar.java`; read `execute(DelegateExecution)`. **Then trace the full call chain** (see below). |
+| `delegateExpression: ${beanName}` | Spring bean implementing `JavaDelegate` | Find the bean: `@Component("beanName")` or `@Named` / a `@Bean` method named `beanName`; read its `execute(...)`. **Then trace the full call chain** (see below). |
+| `expression: ${bean.method(...)}` | Method expression | Find `bean` and the method. **Then trace the full call chain** (see below). |
 | `resultVariable` | Process variable that receives the expression/decision result | Note it in Inputs/Outputs |
+
+#### Deep call-chain tracing (mandatory for every service/external/expression binding)
+
+Delegates, workers, and expression beans are almost never the real logic — they
+are thin entry points that delegate to injected services. **You must follow the
+entire call chain** from the delegate through every service, repository, API
+client, and utility it calls, until you reach the actual business operations:
+
+1. **Read the delegate/worker/bean** — note constructor-injected or `@Autowired`
+   dependencies.
+2. **Open each called service method** and read what it does.
+3. **Keep following** if that method calls further services, repositories, REST
+   clients, message producers, or utilities. Stop only when you reach a
+   terminal operation:
+   - **Database access** (JPA repository, JDBC template, native query) →
+     document which entities/tables are read or written, the criteria/filters,
+     and the effect (create / update / delete / query).
+   - **External HTTP / REST / SOAP call** → document the target system,
+     endpoint/operation, request payload, expected response, and error handling.
+   - **Message / event production** (Kafka, RabbitMQ, JMS, Camunda message
+     correlation) → document the topic/queue, payload structure, and consumer
+     if identifiable.
+   - **Business logic / calculations** → describe what is computed, which rules
+     or formulas apply, and edge cases.
+4. **Track every process variable** read (`getVariable`) and written
+   (`setVariable`) across the entire chain — not just in the delegate itself.
+5. **Document errors**: which exceptions can be thrown, which are mapped to
+   `BpmnError` (and with what error code), and which propagate as incidents.
 
 ### Business rule tasks (DMN)
 
