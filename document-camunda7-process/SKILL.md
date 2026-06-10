@@ -19,10 +19,10 @@ If several match, list them and ask which one.
 
 ## Output
 
-A single Markdown file at **`doc/processes/<ProcessName>.md`**, where
-`<ProcessName>` is derived from the process `name` (fallback: process `id`),
-in PascalCase with spaces/odd characters removed (e.g. "Loan Application" →
-`LoanApplication.md`).
+A single Markdown file at **`doc/processes/<BpmnFilename>.md`**, where
+`<BpmnFilename>` is the exact name of the source `.bpmn` file with its
+extension replaced by `.md` (e.g. `loan-application.bpmn` →
+`loan-application.md`).
 
 - **Create** the file (and the `doc/processes/` directory) if absent.
 - **Update** it in place if it exists: regenerate the content but preserve the
@@ -116,7 +116,7 @@ found, record it under "Open questions / gaps" — never invent behaviour.
 
 Fill `assets/process-doc-template.md` end to end. Write for a business reader;
 keep code-level detail inside the clearly-marked technical fields. Then write the
-file to `doc/processes/<ProcessName>.md` and tell the user the path and a
+file to `doc/processes/<BpmnFilename>.md` and tell the user the path and a
 one-line summary of what you documented (and list any gaps).
 
 ## Quality bar
